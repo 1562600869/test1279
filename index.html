@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汽车影院管理系统</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6fa; color: #2c3e50; }
+header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: #fff; padding: 20px 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+header h1 { font-size: 24px; display: flex; align-items: center; gap: 12px; }
+header h1::before { content: "🎬"; font-size: 32px; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #e0e0e0; }
+.tab { padding: 12px 24px; cursor: pointer; background: none; border: none; font-size: 15px; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
+.tab:hover { color: #16213e; }
+.tab.active { color: #16213e; border-bottom-color: #e94560; font-weight: 600; }
+.panel { display: none; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.panel.active { display: block; }
+.panel-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #16213e; display: flex; justify-content: space-between; align-items: center; }
+.btn { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; font-weight: 500; }
+.btn-primary { background: #e94560; color: #fff; }
+.btn-primary:hover { background: #c73650; }
+.btn-secondary { background: #ecf0f1; color: #2c3e50; }
+.btn-secondary:hover { background: #d5dbdb; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+th { background: #f8f9fa; font-weight: 600; color: #555; font-size: 13px; }
+tr:hover { background: #fafbfc; }
+.tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.tag-爱情 { background: #ffe0ec; color: #c2185b; }
+.tag-动作 { background: #ffe0e0; color: #c62828; }
+.tag-喜剧 { background: #fff4d6; color: #f57f17; }
+.tag-科幻 { background: #e1f5fe; color: #0277bd; }
+.tag-悬疑 { background: #e8eaf6; color: #283593; }
+.tag-动画 { background: #e8f5e9; color: #2e7d32; }
+.tag-售票中 { background: #e8f5e9; color: #2e7d32; }
+.tag-已结束 { background: #eceff1; color: #455a64; }
+.tag-已取消 { background: #ffebee; color: #c62828; }
+.modal-mask { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+.modal-mask.show { display: flex; }
+.modal { background: #fff; border-radius: 12px; padding: 28px; width: 480px; max-width: 92vw; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal h3 { font-size: 18px; margin-bottom: 20px; color: #16213e; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; font-weight: 500; }
+.form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; transition: border 0.2s; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: #e94560; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.empty { text-align: center; padding: 60px 20px; color: #999; font-size: 14px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 20px; border-radius: 12px; }
+.stat-card h4 { font-size: 13px; opacity: 0.9; margin-bottom: 8px; }
+.stat-card .num { font-size: 28px; font-weight: 700; }
+.stats-table { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.price-yuan { color: #e94560; font-weight: 600; }
+.toast { position: fixed; top: 24px; right: 24px; background: #2c3e50; color: #fff; padding: 12px 20px; border-radius: 6px; z-index: 1000; opacity: 0; transform: translateY(-20px); transition: all 0.3s; font-size: 14px; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: #e74c3c; }
+.toast.success { background: #27ae60; }
+.action-btns { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+<header>
+    <h1>汽车影院场次与订票管理系统</h1>
+</header>
+<div class="container">
+    <div class="tabs">
+        <button class="tab active" data-tab="movies">影片管理</button>
+        <button class="tab" data-tab="sessions">场次管理</button>
+        <button class="tab" data-tab="bookings">订票管理</button>
+        <button class="tab" data-tab="stats">数据统计</button>
+    </div>
+
+    <div id="movies" class="panel active">
+        <div class="panel-title">
+            <span>影片列表</span>
+            <button class="btn btn-primary" onclick="openMovieModal()">+ 新增影片</button>
+        </div>
+        <table>
+            <thead><tr><th>ID</th><th>片名</th><th>类型</th><th>时长(分钟)</th><th>操作</th></tr></thead>
+            <tbody id="movieList"></tbody>
+        </table>
+    </div>
+
+    <div id="sessions" class="panel">
+        <div class="panel-title">
+            <span>场次列表</span>
+            <button class="btn btn-primary" onclick="openSessionModal()">+ 新增场次</button>
+        </div>
+        <table>
+            <thead><tr><th>ID</th><th>影片</th><th>放映时间</th><th>总车位</th><th>已售</th><th>剩余</th><th>票价</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="sessionList"></tbody>
+        </table>
+    </div>
+
+    <div id="bookings" class="panel">
+        <div class="panel-title">
+            <span>订票记录</span>
+            <button class="btn btn-primary" onclick="openBookingModal()">+ 新建订票</button>
+        </div>
+        <table>
+            <thead><tr><th>ID</th><th>影片</th><th>场次</th><th>客户</th><th>手机</th><th>车位</th><th>金额</th><th>时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="bookingList"></tbody>
+        </table>
+    </div>
+
+    <div id="stats" class="panel">
+        <div class="panel-title"><span>本月各类型票房统计</span></div>
+        <div class="stats-grid" id="statsSummary"></div>
+        <div class="stats-table">
+            <table>
+                <thead><tr><th>影片类型</th><th>场次数</th><th>票房收入</th></tr></thead>
+                <tbody id="statsList"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="movieModal">
+    <div class="modal">
+        <h3 id="movieModalTitle">新增影片</h3>
+        <div class="form-group">
+            <label>片名</label>
+            <input type="text" id="m_title" placeholder="请输入片名">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>类型</label>
+                <select id="m_genre">
+                    <option value="爱情">爱情</option>
+                    <option value="动作">动作</option>
+                    <option value="喜剧">喜剧</option>
+                    <option value="科幻">科幻</option>
+                    <option value="悬疑">悬疑</option>
+                    <option value="动画">动画</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>时长(分钟)</label>
+                <input type="number" id="m_duration" min="1" value="120">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('movieModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveMovie()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="sessionModal">
+    <div class="modal">
+        <h3 id="sessionModalTitle">新增场次</h3>
+        <div class="form-group">
+            <label>选择影片</label>
+            <select id="s_movie_id"></select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>放映时间</label>
+                <input type="datetime-local" id="s_show_time">
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="s_status">
+                    <option value="售票中">售票中</option>
+                    <option value="已结束">已结束</option>
+                    <option value="已取消">已取消</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>停车位总数</label>
+                <input type="number" id="s_total_slots" min="1" value="50">
+            </div>
+            <div class="form-group">
+                <label>票价(分)</label>
+                <input type="number" id="s_price_fen" min="1" value="5000">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('sessionModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveSession()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="bookingModal">
+    <div class="modal">
+        <h3>新建订票</h3>
+        <div class="form-group">
+            <label>选择场次（仅售票中状态可选）</label>
+            <select id="b_session_id" onchange="updateSessionInfo()"></select>
+            <div id="sessionInfo" style="margin-top:8px; font-size:13px; color:#666;"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>客户姓名</label>
+                <input type="text" id="b_customer" placeholder="请输入姓名">
+            </div>
+            <div class="form-group">
+                <label>手机号</label>
+                <input type="text" id="b_phone" placeholder="请输入手机号">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>购买车位数</label>
+            <input type="number" id="b_slots" min="1" value="1">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('bookingModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveBooking()">确认订票</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api';
+let editingMovieId = null;
+let editingSessionId = null;
+let sessionsCache = [];
+let moviesCache = [];
+
+function toast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    setTimeout(() => t.className = 'toast', 2500);
+}
+
+async function request(url, method='GET', body=null) {
+    const opt = { method, headers: {'Content-Type': 'application/json'} };
+    if (body) opt.body = JSON.stringify(body);
+    try {
+        const res = await fetch(API + url, opt);
+        const data = await res.json();
+        if (data.code !== 0) {
+            toast(data.message, 'error');
+            return null;
+        }
+        return data.data;
+    } catch(e) {
+        toast('网络错误: ' + e.message, 'error');
+        return null;
+    }
+}
+
+document.querySelectorAll('.tab').forEach(t => {
+    t.onclick = () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById(t.dataset.tab).classList.add('active');
+        if (t.dataset.tab === 'movies') loadMovies();
+        if (t.dataset.tab === 'sessions') loadSessions();
+        if (t.dataset.tab === 'bookings') loadBookings();
+        if (t.dataset.tab === 'stats') loadStats();
+    };
+});
+
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function loadMovies() {
+    const list = await request('/movies');
+    moviesCache = list || [];
+    const tbody = document.getElementById('movieList');
+    if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无影片数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(m => `
+        <tr>
+            <td>${m.id}</td>
+            <td>${m.title}</td>
+            <td><span class="tag tag-${m.genre}">${m.genre}</span></td>
+            <td>${m.duration} 分钟</td>
+            <td class="action-btns">
+                <button class="btn btn-secondary btn-sm" onclick='editMovie(${JSON.stringify(m)})'>编辑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteMovie(${m.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openMovieModal() {
+    editingMovieId = null;
+    document.getElementById('movieModalTitle').textContent = '新增影片';
+    document.getElementById('m_title').value = '';
+    document.getElementById('m_genre').value = '爱情';
+    document.getElementById('m_duration').value = 120;
+    openModal('movieModal');
+}
+
+function editMovie(m) {
+    editingMovieId = m.id;
+    document.getElementById('movieModalTitle').textContent = '编辑影片';
+    document.getElementById('m_title').value = m.title;
+    document.getElementById('m_genre').value = m.genre;
+    document.getElementById('m_duration').value = m.duration;
+    openModal('movieModal');
+}
+
+async function saveMovie() {
+    const title = document.getElementById('m_title').value.trim();
+    const genre = document.getElementById('m_genre').value;
+    const duration = parseInt(document.getElementById('m_duration').value);
+    if (!title) { toast('请输入片名', 'error'); return; }
+    if (duration <= 0) { toast('时长必须是正整数', 'error'); return; }
+    const body = { title, genre, duration };
+    let res;
+    if (editingMovieId) {
+        body.id = editingMovieId;
+        res = await request('/movies/' + editingMovieId, 'PUT', body);
+    } else {
+        res = await request('/movies', 'POST', body);
+    }
+    if (res) {
+        toast(editingMovieId ? '编辑成功' : '新增成功');
+        closeModal('movieModal');
+        loadMovies();
+    }
+}
+
+async function deleteMovie(id) {
+    if (!confirm('确定删除该影片吗？')) return;
+    if (await request('/movies/' + id, 'DELETE') !== null) {
+        toast('删除成功');
+        loadMovies();
+    }
+}
+
+async function loadSessions() {
+    const list = await request('/sessions');
+    sessionsCache = list || [];
+    const tbody = document.getElementById('sessionList');
+    if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无场次数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(s => `
+        <tr>
+            <td>${s.id}</td>
+            <td>${s.movie_title}</td>
+            <td>${s.show_time}</td>
+            <td>${s.total_slots}</td>
+            <td>${s.sold_slots}</td>
+            <td><b>${s.left_slots}</b></td>
+            <td class="price-yuan">¥${(s.price_fen/100).toFixed(2)}</td>
+            <td><span class="tag tag-${s.status}">${s.status}</span></td>
+            <td class="action-btns">
+                <button class="btn btn-secondary btn-sm" onclick='editSession(${JSON.stringify(s)})'>编辑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteSession(${s.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function populateMovieSelect() {
+    const sel = document.getElementById('s_movie_id');
+    const movies = await request('/movies');
+    sel.innerHTML = (movies || []).map(m => `<option value="${m.id}">${m.title} (${m.genre})</option>`).join('');
+}
+
+function openSessionModal() {
+    editingSessionId = null;
+    document.getElementById('sessionModalTitle').textContent = '新增场次';
+    document.getElementById('s_show_time').value = '';
+    document.getElementById('s_total_slots').value = 50;
+    document.getElementById('s_price_fen').value = 5000;
+    document.getElementById('s_status').value = '售票中';
+    populateMovieSelect();
+    openModal('sessionModal');
+}
+
+function editSession(s) {
+    editingSessionId = s.id;
+    document.getElementById('sessionModalTitle').textContent = '编辑场次';
+    populateMovieSelect().then(() => {
+        document.getElementById('s_movie_id').value = s.movie_id;
+        document.getElementById('s_show_time').value = s.show_time.replace(' ', 'T');
+        document.getElementById('s_total_slots').value = s.total_slots;
+        document.getElementById('s_price_fen').value = s.price_fen;
+        document.getElementById('s_status').value = s.status;
+    });
+    openModal('sessionModal');
+}
+
+async function saveSession() {
+    const movie_id = parseInt(document.getElementById('s_movie_id').value);
+    let show_time = document.getElementById('s_show_time').value;
+    const total_slots = parseInt(document.getElementById('s_total_slots').value);
+    const price_fen = parseInt(document.getElementById('s_price_fen').value);
+    const status = document.getElementById('s_status').value;
+    if (!movie_id) { toast('请选择影片', 'error'); return; }
+    if (!show_time) { toast('请选择放映时间', 'error'); return; }
+    show_time = show_time.replace('T', ' ');
+    if (total_slots <= 0) { toast('停车位总数必须是正整数', 'error'); return; }
+    if (price_fen <= 0) { toast('票价必须是正整数分', 'error'); return; }
+    const body = { movie_id, show_time, total_slots, price_fen, status };
+    let res;
+    if (editingSessionId) {
+        body.id = editingSessionId;
+        res = await request('/sessions/' + editingSessionId, 'PUT', body);
+    } else {
+        res = await request('/sessions', 'POST', body);
+    }
+    if (res) {
+        toast(editingSessionId ? '编辑成功' : '新增成功');
+        closeModal('sessionModal');
+        loadSessions();
+    }
+}
+
+async function deleteSession(id) {
+    if (!confirm('确定删除该场次吗？')) return;
+    if (await request('/sessions/' + id, 'DELETE') !== null) {
+        toast('删除成功');
+        loadSessions();
+    }
+}
+
+async function loadBookings() {
+    const list = await request('/bookings');
+    const tbody = document.getElementById('bookingList');
+    if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无订票数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(b => `
+        <tr>
+            <td>${b.id}</td>
+            <td>${b.movie_title}</td>
+            <td>${b.show_time}</td>
+            <td>${b.customer}</td>
+            <td>${b.phone}</td>
+            <td>${b.slots}</td>
+            <td class="price-yuan">¥${(b.total_fen/100).toFixed(2)}</td>
+            <td>${b.created_at}</td>
+            <td>${b.is_cancelled ? '<span class="tag tag-已取消">已退票</span>' : '<span class="tag tag-售票中">有效</span>'}</td>
+            <td>${b.is_cancelled ? '-' : `<button class="btn btn-danger btn-sm" onclick="cancelBooking(${b.id})">退票</button>`}</td>
+        </tr>
+    `).join('');
+}
+
+async function populateBookingSessionSelect() {
+    const sel = document.getElementById('b_session_id');
+    const sessions = await request('/sessions');
+    const onSale = (sessions || []).filter(s => s.status === '售票中');
+    sel.innerHTML = onSale.map(s => `<option value="${s.id}">${s.movie_title} - ${s.show_time} (剩余${s.left_slots}车位)</option>`).join('');
+    updateSessionInfo();
+}
+
+function updateSessionInfo() {
+    const sid = parseInt(document.getElementById('b_session_id').value);
+    const s = sessionsCache.find(x => x.id === sid);
+    if (s) {
+        document.getElementById('sessionInfo').textContent =
+            `票价: ¥${(s.price_fen/100).toFixed(2)}/车位，剩余: ${s.left_slots} 车位`;
+        document.getElementById('b_slots').max = s.left_slots;
+    }
+}
+
+function openBookingModal() {
+    document.getElementById('b_customer').value = '';
+    document.getElementById('b_phone').value = '';
+    document.getElementById('b_slots').value = 1;
+    populateBookingSessionSelect();
+    openModal('bookingModal');
+}
+
+async function saveBooking() {
+    const session_id = parseInt(document.getElementById('b_session_id').value);
+    const customer = document.getElementById('b_customer').value.trim();
+    const phone = document.getElementById('b_phone').value.trim();
+    const slots = parseInt(document.getElementById('b_slots').value);
+    if (!session_id) { toast('请选择场次', 'error'); return; }
+    if (!customer) { toast('请输入客户姓名', 'error'); return; }
+    if (!phone) { toast('请输入手机号', 'error'); return; }
+    if (slots <= 0) { toast('车位数必须是正整数', 'error'); return; }
+    const res = await request('/bookings', 'POST', { session_id, customer, phone, slots });
+    if (res) {
+        toast('订票成功');
+        closeModal('bookingModal');
+        loadBookings();
+        loadSessions();
+    }
+}
+
+async function cancelBooking(id) {
+    if (!confirm('确定退票吗？车位将被释放。')) return;
+    if (await request('/bookings/' + id + '/cancel', 'POST') !== null) {
+        toast('退票成功');
+        loadBookings();
+        loadSessions();
+    }
+}
+
+async function loadStats() {
+    const stats = await request('/stats/monthly-genre');
+    const tbody = document.getElementById('statsList');
+    const summary = document.getElementById('statsSummary');
+    if (!stats || stats.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">本月暂无统计数据</td></tr>';
+        summary.innerHTML = '';
+        return;
+    }
+    let totalSessions = 0, totalBoxOffice = 0;
+    stats.forEach(s => { totalSessions += s.session_count; totalBoxOffice += s.box_office_fen; });
+    summary.innerHTML = `
+        <div class="stat-card">
+            <h4>本月总场次</h4>
+            <div class="num">${totalSessions}</div>
+        </div>
+        <div class="stat-card">
+            <h4>本月总票房</h4>
+            <div class="num">¥${(totalBoxOffice/100).toFixed(2)}</div>
+        </div>
+        <div class="stat-card">
+            <h4>影片类型数</h4>
+            <div class="num">${stats.length}</div>
+        </div>
+    `;
+    tbody.innerHTML = stats.map(s => `
+        <tr>
+            <td><span class="tag tag-${s.genre}">${s.genre}</span></td>
+            <td>${s.session_count}</td>
+            <td class="price-yuan">¥${(s.box_office_fen/100).toFixed(2)}</td>
+        </tr>
+    `).join('');
+}
+
+loadMovies();
+</script>
+</body>
+</html>
