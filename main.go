@@ -37,8 +37,12 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	data, err := os.ReadFile("index.html")
+	if err != nil {
+		data = []byte(fallbackHTML)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(IndexHTML))
+	w.Write(data)
 }
 
 func routeMovies(w http.ResponseWriter, r *http.Request) {
@@ -112,13 +116,5 @@ func setCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
-
-var IndexHTML = func() string {
-	data, err := os.ReadFile("index.html")
-	if err != nil {
-		return fallbackHTML
-	}
-	return string(data)
-}()
 
 var fallbackHTML = `<html><body><h1>Drive-in Cinema</h1><p>Loading...</p></body></html>`

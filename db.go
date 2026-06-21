@@ -88,17 +88,17 @@ func InitDB(path string) error {
 	CREATE TABLE IF NOT EXISTS movies (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		title TEXT NOT NULL,
-		genre TEXT NOT NULL,
-		duration INTEGER NOT NULL
+		genre TEXT NOT NULL CHECK (genre IN ('爱情','动作','喜剧','科幻','悬疑','动画')),
+		duration INTEGER NOT NULL CHECK (duration > 0)
 	);
 
 	CREATE TABLE IF NOT EXISTS sessions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		movie_id INTEGER NOT NULL,
 		show_time TEXT NOT NULL,
-		total_slots INTEGER NOT NULL,
-		price_fen INTEGER NOT NULL,
-		status TEXT NOT NULL DEFAULT '售票中',
+		total_slots INTEGER NOT NULL CHECK (total_slots > 0),
+		price_fen INTEGER NOT NULL CHECK (price_fen > 0),
+		status TEXT NOT NULL DEFAULT '售票中' CHECK (status IN ('售票中','已结束','已取消')),
 		FOREIGN KEY (movie_id) REFERENCES movies(id)
 	);
 
@@ -107,8 +107,8 @@ func InitDB(path string) error {
 		session_id INTEGER NOT NULL,
 		customer TEXT NOT NULL,
 		phone TEXT NOT NULL,
-		slots INTEGER NOT NULL,
-		total_fen INTEGER NOT NULL,
+		slots INTEGER NOT NULL CHECK (slots > 0),
+		total_fen INTEGER NOT NULL CHECK (total_fen > 0),
 		created_at TEXT NOT NULL,
 		is_cancelled INTEGER NOT NULL DEFAULT 0,
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
@@ -122,6 +122,9 @@ func InitDB(path string) error {
 }
 
 func CreateMovie(m *Movie) error {
+	if !ValidGenres[m.Genre] {
+		return fmt.Errorf("无效的影片类型: %s", m.Genre)
+	}
 	res, err := DB.Exec("INSERT INTO movies (title, genre, duration) VALUES (?, ?, ?)",
 		m.Title, m.Genre, m.Duration)
 	if err != nil {
@@ -159,6 +162,9 @@ func GetMovie(id int64) (*Movie, error) {
 }
 
 func UpdateMovie(m *Movie) error {
+	if !ValidGenres[m.Genre] {
+		return fmt.Errorf("无效的影片类型: %s", m.Genre)
+	}
 	_, err := DB.Exec("UPDATE movies SET title=?, genre=?, duration=? WHERE id=?",
 		m.Title, m.Genre, m.Duration, m.ID)
 	return err
@@ -256,32 +262,46 @@ func CreateBooking(b *Booking) error {
 	}
 	defer tx.Rollback()
 
-	var status string
-	var totalSlots int
-	err = tx.QueryRow("SELECT status, total_slots FROM sessions WHERE id=?", b.SessionID).
-		Scan(&status, &totalSlots)
-	if err != nil {
-		return fmt.Errorf("场次不存在: %w", err)
-	}
-	if status != SessionStatusOnSale {
-		return fmt.Errorf("场次状态为 %s，无法订票", status)
-	}
-
-	var used int
-	err = tx.QueryRow(`
-		SELECT COALESCE(SUM(slots), 0) FROM bookings
-		WHERE session_id=? AND is_cancelled=0
-	`, b.SessionID).Scan(&used)
+	res, err := tx.Exec(`
+		UPDATE sessions
+		SET id = id
+		WHERE id = ?
+		  AND status = ?
+		  AND (total_slots - COALESCE(
+		    (SELECT SUM(slots) FROM bookings
+		     WHERE session_id = sessions.id AND is_cancelled = 0),
+		    0
+		  )) >= ?
+	`, b.SessionID, SessionStatusOnSale, b.Slots)
 	if err != nil {
 		return err
 	}
-	if used+b.Slots > totalSlots {
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		var status string
+		var totalSlots int
+		err = tx.QueryRow("SELECT status, total_slots FROM sessions WHERE id=?", b.SessionID).
+			Scan(&status, &totalSlots)
+		if err != nil {
+			return fmt.Errorf("场次不存在: %w", err)
+		}
+		if status != SessionStatusOnSale {
+			return fmt.Errorf("场次状态为 %s，无法订票", status)
+		}
+		var used int
+		tx.QueryRow(`
+			SELECT COALESCE(SUM(slots), 0) FROM bookings
+			WHERE session_id=? AND is_cancelled=0
+		`, b.SessionID).Scan(&used)
 		return fmt.Errorf("剩余车位不足，仅剩 %d 个", totalSlots-used)
 	}
 
 	b.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
 	b.IsCancelled = false
-	res, err := tx.Exec(`
+	res, err = tx.Exec(`
 		INSERT INTO bookings (session_id, customer, phone, slots, total_fen, created_at, is_cancelled)
 		VALUES (?, ?, ?, ?, ?, ?, 0)
 	`, b.SessionID, b.Customer, b.Phone, b.Slots, b.TotalFen, b.CreatedAt)
@@ -329,21 +349,28 @@ func CancelBooking(id int64) error {
 	}
 	defer tx.Rollback()
 
-	var cancelled int
-	var sessionID int64
-	var slots int
-	err = tx.QueryRow("SELECT is_cancelled, session_id, slots FROM bookings WHERE id=?", id).
-		Scan(&cancelled, &sessionID, &slots)
-	if err != nil {
-		return fmt.Errorf("订票记录不存在: %w", err)
-	}
-	if cancelled == 1 {
-		return fmt.Errorf("该订票已退票")
-	}
-
-	_, err = tx.Exec("UPDATE bookings SET is_cancelled=1 WHERE id=?", id)
+	res, err := tx.Exec(`
+		UPDATE bookings
+		SET is_cancelled = 1
+		WHERE id = ? AND is_cancelled = 0
+	`, id)
 	if err != nil {
 		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		var cancelled int
+		err = tx.QueryRow("SELECT is_cancelled FROM bookings WHERE id=?", id).
+			Scan(&cancelled)
+		if err != nil {
+			return fmt.Errorf("订票记录不存在: %w", err)
+		}
+		if cancelled == 1 {
+			return fmt.Errorf("该订票已退票")
+		}
 	}
 
 	return tx.Commit()
